@@ -1,2 +1,2 @@
 # Sant-Booking
-Sant-Booking is an application for booking hotels and viewing offers for visiting interesting places in St. Petersburg.
+Sant-Booking is an worldwide application for booking hotels and viewing offers for visiting interesting places.
