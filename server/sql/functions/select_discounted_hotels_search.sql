@@ -1,92 +1,77 @@
-CREATE OR REPLACE FUNCTION select_discounted_hotels_start(
+CREATE OR REPLACE FUNCTION select_discounted_hotels_search(
+	_room_params boolean[],
     _num_for_sort text,
 	_num_of_people int,
 	_limit int,
     _offset int,
 	_sort_cond text,
 	_sort_type text,
-	_climate_control boolean,
-    _high_speed_wifi boolean,
-    _private_bathroom boolean,
-    _tv_add_opt boolean,
-    _mini_bar boolean,
-    _in_room_safe boolean,
-    _work_features boolean,
-    _room_service boolean,
-    _room_cleaning boolean,
-    _transport_service boolean,
-    _luggage_storage boolean,
-    _full_time_support boolean,
-    _fitness_center boolean,
-    _in_room_workout_equip boolean,
-    _spa boolean,
-    _swimming_pool_cov boolean,
-    _swimming_pool_unc boolean,
-    _business_center boolean,
-    _meeting_rooms boolean,
-    _restaurant boolean,
-    _breakfast_options boolean,
-    _in_room_dining boolean,
-    _children_service boolean,
-    _pet boolean,
-    _free_cancel boolean
-        ) 
-        RETURNS TABLE(name character varying(60), country character varying(30), city character varying(30), user_rating numeric(2,1), old_price numeric(10,2), new_price numeric(10,2) ,photos_path text) AS $$
+	_country text,
+	_city text        ) 
+        RETURNS TABLE(name character varying(60), address character varying(60), user_rating numeric(2,1), stars integer, old_price numeric(10,2), discount numeric(3,2),photos_path text) AS $$
     BEGIN
          RETURN QUERY
-        	SELECT hotels.name , hotels.country, hotels.city, hotels.user_rating, room.price, (room.price * discounted_hotels.discount) AS new_price ,h_photos_path
-		FROM hotels
-		JOIN hotels_photos ON hotels_photos.fk_hotel_id = hotels.id
-		JOIN service_of_rooms ON service_of_rooms.fk_hotel_id = hotels.id
-        JOIN discounted_hotels ON discounted_hotels.fk_hotel_id = hotels.id
-		JOIN room ON room.fk_hotel_id = hotels.id
-		WHERE (_sort_cond >= _num_for_sort) 
-            AND (_climate_control IS NULL OR climate_control = _climate_control) 
-			AND (_high_speed_wifi IS NULL OR high_speed_wifi = _high_speed_wifi) 
-			AND (_private_bathroom IS NULL OR p_bathroom = _private_bathroom) 
-			AND (_tv_add_opt IS NULL OR tv_add_opt = _tv_add_opt) 
-			AND (_mini_bar IS NULL OR mini_bar = _mini_bar) 
-			AND (_in_room_safe IS NULL OR in_room_safe = _in_room_safe) 
-			AND (_work_features IS NULL OR work_features = _work_features) 
-			AND (_room_service IS NULL OR room_service = _room_service) 
-			AND (_room_cleaning IS NULL OR room_cleaning = _room_cleaning) 
-			AND (_transport_service IS NULL OR _transport_service = _transport_service) 
-			AND (_luggage_storage IS NULL OR luggage_storage = _luggage_storage) 
-			AND (_full_time_support IS NULL OR full_time_supp = _full_time_support) 
-			AND (_fitness_center IS NULL OR fitness_center = _fitness_center) 
-			AND (_in_room_workout_equip IS NULL OR in_room_workout_equip = _in_room_workout_equip) 
-			AND (_spa IS NULL OR spa = _spa) 
-			AND (_swimming_pool_cov IS NULL OR swimming_pool_cov = _swimming_pool_cov) 
-			AND (_swimming_pool_unc IS NULL OR swimming_pool_unc = _swimming_pool_unc) 
-			AND (_business_center IS NULL OR business_center = _business_center) 
-			AND (_meeting_rooms IS NULL OR meeting_rooms = _meeting_rooms) 
-			AND (_restaurant IS NULL OR restaurant = _restaurant) 
-			AND (_breakfast_options IS NULL OR breakfast_opt = _breakfast_options) 
-			AND (_in_room_dining IS NULL OR in_room_dining = _in_room_dining) 
+        	SELECT obj1.name, obj1.address, obj1.user_rating, obj1.stars, MAX(room.price) AS price, discounted_hotels.discount, hotels_photos.h_photos_path
+            FROM hotels obj1
+            JOIN hotels_photos ON hotels_photos.fk_hotel_id = obj1.id
+            JOIN service_of_rooms ON service_of_rooms.fk_hotel_id = obj1.id
+            JOIN discounted_hotels ON discounted_hotels.fk_hotel_id = obj1.id
+            JOIN room ON room.fk_hotel_id = obj1.id AND discounted_hotels.fk_room_type = room.fk_room_type_id
+            WHERE discounted_hotels.discount = 
+            (SELECT MAX(discounted_hotels.discount) 
+                FROM hotels obj2
+                JOIN discounted_hotels ON discounted_hotels.fk_hotel_id = obj2.id
+                WHERE obj2.id = obj1.id
+                GROUP BY obj2.name) 
+            AND (_num_for_sort IS NULL OR _sort_cond >= _num_for_sort)
+			AND (_country IS NULL OR obj1.country = _country)
+			AND (_city IS NULL OR obj1.city = _city)  
+            AND (_room_params[0] IS NULL OR climate_control = _room_params[0]) --_room_params[0] - bool type of the filter 'climate control'
+			AND (_room_params[1] IS NULL OR high_speed_wifi = _room_params[1]) --_room_params[1] - bool type of the filter 'high speed wifi'
+			AND (_room_params[2] IS NULL OR p_bathroom = _room_params[2])  -- _room_params[2] - bool type of the filter 'private bathroom'
+			AND (_room_params[3] IS NULL OR tv_add_opt = _room_params[3]) --_room_params[3] - bool type of the filter 'tv additional options'
+			AND (_room_params[4] IS NULL OR mini_bar = _room_params[4])  -- _room_params[4] - bool type of the filter 'mini bar'
+			AND (_room_params[5] IS NULL OR in_room_safe = _room_params[5]) -- _room_params[5] - bool type of the filter 'The availability of a safe in the room'
+			AND (_room_params[6] IS NULL OR work_features = _room_params[6]) -- _room_params[6] - bool type of the filter 'features for work(accessories)'
+			AND (_room_params[7] IS NULL OR room_service = _room_params[7]) -- _room_params[7] - bool type of the filter 'room service'
+			AND (_room_params[8] IS NULL OR room_cleaning = _room_params[8]) -- _room_params[8] - bool type of the filter 'room cleaning'
+			AND (_room_params[9] IS NULL OR transport_service = _room_params[9]) -- _room_params[9] - bool type of the filter 'transport service'
+			AND (_room_params[10] IS NULL OR luggage_storage = _room_params[10]) -- _room_params[10] - bool type of the filter 'luggage storage'
+			AND (_room_params[11] IS NULL OR full_time_supp = _room_params[11]) -- _room_params[11] - bool type of the filter 'full time support' 
+			AND (_room_params[12] IS NULL OR fitness_center = _room_params[12]) -- _room_params[12] - bool type of the filter 'The availability of a fitness center'
+			AND (_room_params[13] IS NULL OR in_room_workout_equip = _room_params[13]) -- _room_params[13] - bool type of the filter 'The availability of workout equipment in a room'
+			AND (_room_params[14] IS NULL OR spa = _room_params[14]) -- _room_params[14] - bool type of the filter 'The availability of spa'
+			AND (_room_params[15] IS NULL OR swimming_pool_cov = _room_params[15]) -- _room_params[15] - bool type of the filter 'The availability of a covered swimming pool'
+			AND (_room_params[16] IS NULL OR swimming_pool_unc = _room_params[16]) -- _room_params[16] - bool type of the filter 'The availability of a uncovered swimming pool'
+			AND (_room_params[17] IS NULL OR business_center = _room_params[17]) -- _room_params[17] - bool type of the filter 'The availability of a business center'
+			AND (_room_params[18] IS NULL OR meeting_rooms = _room_params[18]) -- _room_params[18] - bool type of the filter 'The availability of a meeting room' 
+			AND (_room_params[19] IS NULL OR restaurant = _room_params[19]) -- _room_params[19] - bool type of the filter 'The availability of a restaurant'
+			AND (_room_params[20] IS NULL OR breakfast_opt = _room_params[20]) -- _room_params[20] - bool type of the filter 'breakfast option'
+			AND (_room_params[21] IS NULL OR in_room_dining = _room_params[21])  -- _room_params[21] - bool type of the filter 'The availability of an option 'in room dinning''
 			AND (_num_of_people IS NULL OR group_of >= _num_of_people) 
-			AND (_children_service IS NULL OR child_service = _children_service) 
-			AND (_pet is NULL OR pet_service = _pet) 
-			AND (_free_cancel is NULL OR free_cancel = _free_cancel)
-		GROUP BY hotels.name, hotels.country, hotels.city, h_photos_path, hotels.user_rating, hotels.stars
-		ORDER BY 
+			AND (_room_params[22] IS NULL OR child_service = _room_params[22]) -- _room_params[22] - bool type of the filter 'The availability of services for kids' 
+			AND (_room_params[23] IS NULL OR pet_service = _room_params[23]) -- _room_params[23] - bool type of the filter 'The availability of services for pets' 
+			AND (_room_params[24] IS NULL OR service_of_rooms.free_cancel = _room_params[24]) -- _room_params[24] - bool type of the filter 'free cancel'
+            GROUP BY obj1.name, obj1.address, obj1.user_rating, obj1.stars, discounted_hotels.discount, hotels_photos.h_photos_path
+        ORDER BY 
     CASE 
         WHEN _sort_type = 'DESC' THEN
             CASE _sort_cond
-                WHEN 'user_rating' THEN hotels.user_rating::numeric(2,1)
+                WHEN 'user_rating' THEN obj1.user_rating::numeric(2,1)
                 WHEN 'price' THEN MIN(room.price)::numeric(10,2)
-                WHEN 'stars' THEN hotels.stars::int
-                WHEN '((stars + user_rating) / 2)' THEN ((hotels.stars + hotels.user_rating) / 2)
-                ELSE hotels.user_rating
+                WHEN 'stars' THEN obj1.stars::int
+                WHEN '((stars + user_rating) / 2)' THEN ((obj1.stars + obj1.user_rating) / 2)
+                ELSE obj1.user_rating
             END
     END DESC,
     CASE 
         WHEN _sort_type = 'ASC' THEN
             CASE _sort_cond
-                WHEN 'user_rating' THEN hotels.user_rating::numeric(2,1)
+                WHEN 'user_rating' THEN obj1.user_rating::numeric(2,1)
                 WHEN 'price' THEN MIN(room.price)::numeric(10,2)
-                WHEN 'stars' THEN stars::int
-                WHEN '((stars + user_rating) / 2)' THEN ((hotels.stars + hotels.user_rating) / 2)
-                ELSE hotels.user_rating
+                WHEN 'stars' THEN obj1.stars::int
+                WHEN '((stars + user_rating) / 2)' THEN ((obj1.stars + obj1.user_rating) / 2)
+                ELSE obj1.user_rating
             END
     END ASC
         OFFSET _offset

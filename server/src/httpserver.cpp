@@ -74,6 +74,11 @@ auto httpserver::routes() -> void {
         return _routes->discounted_hotels(req.url_params);
     });
 
+    CROW_ROUTE(_app, "/api/hotels/discounted/search")
+    ([this](const crow::request &req) {
+        return _routes->discounted_hotels_search(req.url_params);
+    });
+
     CROW_ROUTE(_app, "/api/hotel/info")
     ([this](const crow::request &req) {
         return _routes->particular_info_hotels(req.url_params);

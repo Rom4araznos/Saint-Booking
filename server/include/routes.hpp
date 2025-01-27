@@ -42,8 +42,8 @@ class server_routes {
         auto discounted_hotels(const crow::query_string &params)
             -> crow::response;
 
-        // auto discounted_hotels_search(const crow::query_string &params)
-        //     -> crow::response;
+        auto discounted_hotels_search(const crow::query_string &params)
+            -> crow::response;
 
         auto particular_info_hotels(const crow::query_string &params)
             -> crow::response;

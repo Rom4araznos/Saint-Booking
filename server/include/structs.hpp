@@ -45,32 +45,6 @@ struct request_params_t {
 
         std::optional<std::string> country;
         std::optional<std::string> city;
-
-        // bool climate_control;
-        // bool high_speed_wifi;
-        // bool private_bathroom;
-        // bool tv_add_opt;
-        // bool mini_bar;
-        // bool in_room_safe;
-        // bool work_features;
-        // bool room_service;
-        // bool room_cleaning;
-        // bool transport_service;
-        // bool luggage_storage;
-        // bool full_time_support;
-        // bool fitness_center;
-        // bool in_room_workout_equip;
-        // bool spa;
-        // bool swimming_pool_cov;
-        // bool swimming_pool_unc;
-        // bool business_center;
-        // bool meeting_rooms;
-        // bool restaurant;
-        // bool breakfast_options;
-        // bool in_room_dining;
-        // bool children_service;
-        // bool pet;
-        // bool free_cancel;
 };
 
 struct psql_config_t {

@@ -20,12 +20,6 @@ class database {
 
         auto get_sql_from_file(std::string_view path_to)
             -> std::optional<std::string>;
-        // auto get_str_opt(const std::variant<std::string, std::nullptr_t>
-        // &var)
-        //     -> std::optional<std::string>;
-        // auto make_opt_vec(
-        //     const std::vector<std::variant<std::uint16_t, std::nullptr_t>>
-        //         &params_vec) -> std::vector<std::optional<std::uint16_t>>;
         auto sql_bool_array(const std::vector<std::optional<std::uint16_t>>
                                 &opt_vec) -> std::string;
         auto hotels_exec(const request_params_t &params)

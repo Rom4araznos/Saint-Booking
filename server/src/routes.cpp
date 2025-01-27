@@ -96,11 +96,6 @@ auto server_routes::query_params_hotels(const crow::query_string &params)
         req_params.timeframe.check_in = opt_ll_queries(check_in);
         req_params.timeframe.cheeck_out = opt_ll_queries((check_out));
         req_params.country = opt_str_queries(country);
-        // req_params.city = query_convert_str(city);
-
-
-        // if (city) req_params.opt_city = std::string(city);
-        // else req_params.opt_city = std::nullopt;
 
         req_params.room_params.push_back(opt_int_queries(climate_control));
         req_params.room_params.push_back(opt_int_queries(high_speed_wifi));
@@ -143,8 +138,6 @@ auto server_routes::query_params_hotels(const crow::query_string &params)
 auto server_routes::query_params_places(const crow::query_string &params)
     -> std::variant<request_params_t, crow::response> {
 
-    // добавить время резерв
-
     request_params_t req_params;
 
     auto order = params.get("order");
@@ -160,9 +153,6 @@ auto server_routes::query_params_places(const crow::query_string &params)
     auto num_for_sort = params.get("sort_num");
     auto country = params.get("cntr");
     auto city = params.get("ct");
-
-    // std::string countru_str(country);
-    // std::string city_str(city);
 
     try {
 
@@ -259,6 +249,24 @@ auto server_routes::discounted_hotels(const crow::query_string &params)
 
     return *json;
 }
+
+auto server_routes::discounted_hotels_search(const crow::query_string &params)
+    -> crow::response {
+
+    auto r_discounted_hotel = query_params_hotels(params);
+
+    if (std::holds_alternative<crow::response>(r_discounted_hotel))
+
+        return std::move(std::get<crow::response>(r_discounted_hotel));
+
+    auto json = _database->discounted_hotels_search_exec(
+        std::get<request_params_t>(r_discounted_hotel));
+
+    if (!json.has_value())
+        return crow::response(400, "The database did not return a value.");
+
+    return *json;
+};
 
 auto server_routes::places(const crow::query_string &params) -> crow::response {
 

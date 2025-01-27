@@ -21,6 +21,7 @@ database::database(std::shared_ptr<connection_pool> &con_pool,
         "bin_sql/functions/select_hotels_start.sql",
         "bin_sql/functions/select_hotels_search.sql",
         "bin_sql/functions/select_discounted_hotels_start.sql",
+        "bin_sql/functions/select_discounted_hotels_search.sql",
         "bin_sql/functions/select_places_start.sql",
         "bin_sql/functions/select_places_search.sql",
         "bin_sql/functions/select_hotel.sql",
@@ -333,6 +334,83 @@ auto database::discounted_hotels_exec(const request_params_t &params)
     }
 }
 
+auto database::discounted_hotels_search_exec(const request_params_t &params)
+    -> std::optional<crow::json::wvalue> {
+    try {
+        crow::json::wvalue json;
+        crow::json::wvalue::list list;
+
+        auto conn = pool->acquire();
+
+        pqxx::work tx{*conn};
+
+        std::string array = sql_bool_array(params.room_params);
+
+        pqxx::params pq_params{
+            array,        params.num_for_sort, params.person,
+            params.limit, params.offset,       types_of_orders[params.order_by],
+            params.order, params.country,      params.city};
+
+        pqxx::result res = tx.exec(
+            "SELECT * FROM select_discounted_hotels_search($1, $2, $3, $4, "
+            "$5,$6, $7, $8, $9)",
+            pq_params);
+
+        tx.commit();
+
+        const std::size_t num_row = res.size();
+
+        for (std::size_t i = 0; i < num_row; i++) {
+
+            const pqxx::row row = res[i];
+
+            json["name"] = nullptr;
+            json["address"] = nullptr;
+            json["user_rating"] = nullptr;
+            json["stars"] = nullptr;
+            json["old_price"] = nullptr;
+            json["discount"] = nullptr;
+            json["new_price"] = nullptr;
+            json["photo_path"] = nullptr;
+
+            if (auto name = row["name"].get<std::string>())
+                json["name"] = *name;
+
+            if (auto address = row["address"].get<std::string>())
+                json["address"] = *address;
+
+            if (auto user_rating = row["user_rating"].get<double>())
+                json["user_rating"] = *user_rating;
+
+            if (auto stars = row["stars"].get<int>()) json["stars"] = *stars;
+
+            auto old_price = row["old_price"].get<double>();
+            auto discount = row["discount"].get<double>();
+
+            if (old_price != std::nullopt && discount != std::nullopt) {
+
+                json["old_price"] = *old_price;
+                json["discount"] = *discount;
+                json["new_price"] = *old_price - ((*old_price) * (*discount));
+            }
+            if (auto photo_path = row["photos_path"].get<std::string>())
+                json["photo_path"] = *photo_path;
+
+            list.push_back(json);
+        }
+
+        return list;
+    }
+
+    catch (const std::exception &exc) {
+
+        std::cout << "The connection to the database failed: " << exc.what()
+                  << std::endl;
+
+        return std::nullopt;
+    }
+}
+
 
 auto database::places_exec(const request_params_t &params)
     -> std::optional<crow::json::wvalue> {
@@ -412,9 +490,9 @@ auto database::places_search_exec(const request_params_t &params)
             params.order,        params.country,
             params.city};
 
-        pqxx::result res = tx.exec(
-            "SELECT * FROM select_places_search($1, $2, $3, $4, $5, $6, $7)",
-            pq_params);
+        pqxx::result res = tx.exec("SELECT * FROM select_places_search($1, "
+                                   "$2, $3, $4, $5, $6, $7)",
+                                   pq_params);
 
         tx.commit();
 
@@ -715,7 +793,6 @@ auto database::particular_place_exec(const request_params_t &params)
                 json["photos_path"] = *photos_path;
 
             auto hotel = row["hotel"].as_sql_array<std::string, 1>();
-            // json["hotel"] = hotel;
 
             std::vector<std::string> vec;
 
