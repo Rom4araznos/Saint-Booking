@@ -1,0 +1,37 @@
+CREATE OR REPLACE FUNCTION select_places_start(
+    _num_for_sort text,
+	_limit int,
+    _offset int,
+	_sort_cond text,
+	_sort_type text
+        ) 
+        RETURNS TABLE(name character varying(60), country character varying(30), city character varying(30), photos_path text) AS $$
+    BEGIN
+         RETURN QUERY
+        	SELECT places.name,places.country, places.city, places_photos.p_photos_path
+		FROM places
+		JOIN places_photos ON places_photos.fk_place_id = places.id
+		WHERE (_num_for_sort IS NULL OR _sort_cond >= _num_for_sort)
+        GROUP BY  places.name,places.country, places.city, places_photos.p_photos_path, places.price, places.user_rating
+		ORDER BY
+    CASE 
+        WHEN _sort_type = 'DESC' THEN
+            CASE _sort_cond
+                WHEN 'user_rating' THEN places.user_rating::numeric(2,1)
+                WHEN 'price' THEN MIN(places.price)::numeric(10,2)
+                ELSE places.user_rating
+            END
+    END DESC,
+    CASE 
+        WHEN _sort_type = 'ASC' THEN
+            CASE _sort_cond
+                WHEN 'user_rating' THEN places.user_rating::numeric(2,1)
+                WHEN 'price' THEN MIN(places.price)::numeric(10,2)
+                ELSE places.user_rating
+            END
+    END ASC
+        OFFSET _offset
+		LIMIT _limit;
+
+    END;
+$$ LANGUAGE plpgsql;
