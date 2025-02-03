@@ -1,11 +1,15 @@
 #include "database.hpp"
+#include "crow/http_response.h"
 #include "crow/json.h"
+#include "crypto.hpp"
+#include "database_pool.hpp"
 #include "structs.hpp"
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
 #include <exception>
 #include <fstream>
+#include <openssl/evp.h>
 #include <optional>
 #include <pqxx/internal/statement_parameters.hxx>
 #include <pqxx/zview.hxx>
@@ -99,6 +103,40 @@ auto database::sql_bool_array(
     sql_req += "}";
 
     return sql_req;
+}
+
+auto database::user_reg_exec(const std::string &email,
+                             std::string &pass) -> crow::response {
+
+    try {
+
+        auto connection = pool->acquire();
+
+        pqxx::work tx{*connection};
+
+        std::string salt = crypto::salt();
+
+        std::string p_h = crypto::pepper +
+                          crypto::hash_to_hex(
+                              *crypto::create_hash_evp(EVP_sha256(), pass));
+
+
+        pqxx::params params{email, p_h, salt};
+
+        tx.exec("INSERT INTO person(email, hash_pass, salt) VALUES($1,$2,$3)",
+                params);
+
+        tx.commit();
+        return crow::response(200);
+
+
+    } catch (const std::exception &exc) {
+
+        std::cout << "The connection to the databse failed" << exc.what()
+                  << std::endl;
+
+        return crow::response(400, "The connection to the databse failed");
+    }
 }
 
 auto database::hotels_exec(const request_params_t &params)
