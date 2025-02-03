@@ -1,4 +1,8 @@
-add_executable(server_bk src/httpserver.cpp src/routes.cpp src/database.cpp src/database_pool.cpp src/core.cpp src/main.cpp)
+add_definitions(-DCROW_ENABLE_SSL)
+
+add_executable(server_bk src/httpserver.cpp src/routes.cpp src/database.cpp src/database_pool.cpp src/core.cpp src/crypto.cpp src/main.cpp)
+
+target_compile_definitions(server_bk PRIVATE CROW_ENABLE_SSL)
 
 find_package(PostgreSQL REQUIRED)
 find_package(OpenSSL REQUIRED)
