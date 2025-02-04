@@ -1,6 +1,4 @@
 #pragma once
-#define CROW_ENABLE_SSL
-
 #include <memory>
 #include "routes.hpp"
 #include "crow/app.h"
