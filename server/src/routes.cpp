@@ -1,4 +1,5 @@
 #include "crow/http_response.h"
+#include "crow/json.h"
 #include "crow/query_string.h"
 #include <asio/ssl/context.hpp>
 #include <asio/ssl/verify_mode.hpp>
@@ -9,8 +10,10 @@
 #include <string>
 #include <utility>
 #include <variant>
+#include "database.hpp"
 #include "structs.hpp"
 #include "routes.hpp"
+#include "openssl/sha.h"
 
 auto server_routes::opt_int_queries(const char *param)
     -> std::optional<std::uint16_t> {
@@ -335,4 +338,16 @@ auto server_routes::particular_info_places(const crow::query_string &params)
         return crow::response(400, "The database did not return a value.");
 
     return *json;
+}
+
+auto server_routes::user_reg(const crow::json::rvalue &data) -> crow::response {
+
+    if (!data) return crow::response(400, "The client has not sent the data");
+
+    std::string e = data["email"].s();
+    std::string p = data["password"].s();
+
+    auto resp = _database->user_reg_exec(e, p);
+
+    return resp;
 }
