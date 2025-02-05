@@ -39,7 +39,9 @@ class database {
         auto particular_place_exec(const request_params_t &params)
             -> std::optional<crow::json::wvalue>;
         auto user_reg_exec(const std::string &email,
-                           std::string &pass) -> crow::response;
+                           const std::string &pass) -> crow::response;
+        auto user_log_exec(const std::string &email, const std::string &pass)
+            -> std::optional<crow::response>;
 
     protected:
         std::shared_ptr<connection_pool> pool;

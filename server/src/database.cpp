@@ -1,6 +1,7 @@
 #include "database.hpp"
 #include "crow/http_response.h"
 #include "crow/json.h"
+#include "crow/returnable.h"
 #include "crypto.hpp"
 #include "database_pool.hpp"
 #include "structs.hpp"
@@ -106,7 +107,7 @@ auto database::sql_bool_array(
 }
 
 auto database::user_reg_exec(const std::string &email,
-                             std::string &pass) -> crow::response {
+                             const std::string &pass) -> crow::response {
 
     try {
 
@@ -114,28 +115,82 @@ auto database::user_reg_exec(const std::string &email,
 
         pqxx::work tx{*connection};
 
-        std::string salt = crypto::salt();
+        std::string salt = crypto::hash_to_hex(*crypto::rand_bytes(8));
 
         std::string p_h = crypto::pepper +
-                          crypto::hash_to_hex(
-                              *crypto::create_hash_evp(EVP_sha256(), pass));
+                          crypto::hash_to_hex(*crypto::create_hash_evp(
+                              EVP_sha256(), std::string(pass + salt)));
 
 
         pqxx::params params{email, p_h, salt};
 
-        tx.exec("INSERT INTO person(email, hash_pass, salt) VALUES($1,$2,$3)",
-                params);
+        tx.exec(
+            "INSERT INTO person(email, hash_pass, salt) VALUES($1,$2,$3::text)",
+            params);
 
         tx.commit();
-        return crow::response(200);
 
+        return crow::response(200);
 
     } catch (const std::exception &exc) {
 
         std::cout << "The connection to the databse failed" << exc.what()
                   << std::endl;
 
-        return crow::response(400, "The connection to the databse failed");
+        return crow::response(400, "The connection to the databse failed: ");
+    }
+}
+
+auto database::user_log_exec(const std::string &email, const std::string &pass)
+    -> std::optional<crow::response> {
+
+    try {
+
+        crow::response r;
+
+        auto connection = pool->acquire();
+
+        pqxx::work tx{*connection};
+
+        pqxx::params params = {email};
+
+        pqxx::result res = tx.exec(
+            "SELECT salt, hash_pass FROM person WHERE email = $1", params);
+
+        tx.commit();
+
+        if (res.empty()) return std::nullopt;
+
+        const pqxx::row data = res.back();
+
+        std::string salt = *data["salt"].get<std::string>();
+        std::string db_p_h = *data["hash_pass"].get<std::string>();
+
+        std::string p_h = crypto::pepper +
+                          crypto::hash_to_hex(*crypto::create_hash_evp(
+                              EVP_sha256(), pass + salt));
+
+        if (db_p_h == p_h) {
+
+            auto token = crypto::hash_to_hex(*crypto::rand_bytes(16));
+
+            r.set_header(
+                "Set-Cookie",
+                "session_token=" + token +
+                    ";HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=3600");
+            r.code = 200;
+
+            return r;
+        }
+
+        return std::nullopt;
+
+    } catch (const std::exception &exc) {
+
+        std::cout << "The connection to the databse failed: " << exc.what()
+                  << std::endl;
+
+        return std::nullopt;
     }
 }
 
