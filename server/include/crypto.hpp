@@ -8,7 +8,7 @@
 
 namespace crypto {
 
-    auto salt() -> std::string;
+    auto rand_bytes(std::uint32_t size) -> std::optional<std::string>;
     auto hash_to_hex(const std::string &data) -> std::string;
     auto create_hash_evp(const EVP_MD *mod,
                          const std::string &data) -> std::optional<std::string>;

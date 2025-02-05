@@ -1,27 +1,27 @@
 #include "crypto.hpp"
 #include <cstddef>
+#include <cstdint>
 #include <cstdlib>
 #include <iomanip>
 #include <openssl/err.h>
 #include <openssl/evp.h>
+#include <openssl/rand.h>
 #include <optional>
 #include <sstream>
 #include <string>
+#include <vector>
 
-auto crypto::salt() -> std::string {
+auto crypto::rand_bytes(std::uint32_t size) -> std::optional<std::string> {
 
-    std::string st;
+    std::string buf;
 
-    srand(clock());
+    buf.resize(size);
 
-    for (int i = 0; i <= 3; i++) {
+    auto rand = RAND_bytes(reinterpret_cast<std::uint8_t *>(buf.data()), size);
 
-        auto sym = crypto::alph[rand() % alph.size()];
+    if (rand != 1) return std::nullopt;
 
-        st += sym;
-    }
-
-    return st;
+    return buf;
 }
 
 auto crypto::create_hash_evp(const EVP_MD *mod, const std::string &data)
