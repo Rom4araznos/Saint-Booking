@@ -94,12 +94,11 @@ auto httpserver::routes() -> void {
 
     CROW_ROUTE(_app, "/join")
         .methods(crow::HTTPMethod::POST)([this](const crow::request &req) {
-            auto json = crow::json::load(req.body);
-
-            return _routes->user_reg(json);
+            return _routes->user_reg(crow::json::load(req.body));
         });
 
     CROW_ROUTE(_app, "/login")
-    ([this](crow::request &req) {
-    });
+        .methods(crow::HTTPMethod::POST)([this](const crow::request &req) {
+            return _routes->user_log(crow::json::load(req.body));
+        });
 }
