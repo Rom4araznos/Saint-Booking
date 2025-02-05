@@ -54,6 +54,8 @@ class server_routes {
 
         auto user_reg(const crow::json::rvalue &data) -> crow::response;
 
+        auto user_log(const crow::json::rvalue &data) -> crow::response;
+
     private:
         std::shared_ptr<database> _database;
 };

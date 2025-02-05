@@ -351,3 +351,18 @@ auto server_routes::user_reg(const crow::json::rvalue &data) -> crow::response {
 
     return resp;
 }
+
+auto server_routes::user_log(const crow::json::rvalue &data) -> crow::response {
+
+    if (!data) return crow::response(400, "The client has not sent the data");
+
+    std::string e = data["email"].s();
+    std::string p = data["password"].s();
+
+    auto resp = _database->user_log_exec(e, p);
+
+    if (!resp.has_value())
+        return crow::response(400, "Incorrect authorization data");
+
+    return std::move(*resp);
+}
