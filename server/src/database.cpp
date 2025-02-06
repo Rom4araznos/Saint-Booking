@@ -6,6 +6,7 @@
 #include "database_pool.hpp"
 #include "structs.hpp"
 #include <cassert>
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <exception>
@@ -152,10 +153,10 @@ auto database::user_log_exec(const std::string &email, const std::string &pass)
 
         pqxx::work tx{*connection};
 
-        pqxx::params params = {email};
+        pqxx::params p1 = {email};
 
         pqxx::result res = tx.exec(
-            "SELECT salt, hash_pass FROM person WHERE email = $1", params);
+            "SELECT salt, hash_pass FROM person WHERE email = $1", p1);
 
         tx.commit();
 
@@ -174,10 +175,37 @@ auto database::user_log_exec(const std::string &email, const std::string &pass)
 
             auto token = crypto::hash_to_hex(*crypto::rand_bytes(16));
 
-            r.set_header(
-                "Set-Cookie",
-                "session_token=" + token +
-                    ";HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=3600");
+            pqxx::params p2{email};
+
+            pqxx::result r2 = tx.exec(
+                "SELECT id FROM person WHERE email = $1::text", p2);
+
+            tx.commit();
+
+            auto id = r2.back()["id"].get<int>();
+
+            const auto t1 =
+                std::chrono::duration_cast<std::chrono::seconds>(
+                    std::chrono::system_clock::now().time_since_epoch())
+                    .count();
+
+            const auto t2 =
+                std::chrono::duration_cast<std::chrono::seconds>(
+                    (std::chrono::system_clock::now() + std::chrono::hours(1))
+                        .time_since_epoch())
+                    .count();
+
+            pqxx::params p3{id, token, t1, t2};
+
+            tx.exec("INSERT INTO session VALUES($1::integer,$2::text, $3, $4)",
+                    p3);
+
+            tx.commit();
+
+            r.set_header("Set-Cookie",
+                         "session_token=" + token +
+                             ";HttpOnly; Secure; SameSite=Strict; Path=/; "
+                             "Max-Age=3600");
             r.code = 200;
 
             return r;
