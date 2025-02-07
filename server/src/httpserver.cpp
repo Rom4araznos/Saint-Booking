@@ -1,12 +1,15 @@
 #include "httpserver.hpp"
 #include "crow/app.h"
+#include "crow/common.h"
+#include "crow/http_request.h"
+#include "crow/json.h"
 #include "database.hpp"
 #include "routes.hpp"
 
 
 auto httpserver::run_server() -> void {
 
-    _app.port(18080).multithreaded().run();
+    _app.port(29172).multithreaded().run();
 };
 
 auto httpserver::set_up_config() -> void {
@@ -88,4 +91,14 @@ auto httpserver::routes() -> void {
     ([this](const crow::request &req) {
         return _routes->particular_info_places(req.url_params);
     });
+
+    CROW_ROUTE(_app, "api/join")
+        .methods(crow::HTTPMethod::POST)([this](const crow::request &req) {
+            return _routes->user_reg(crow::json::load(req.body));
+        });
+
+    CROW_ROUTE(_app, "api/login")
+        .methods(crow::HTTPMethod::POST)([this](const crow::request &req) {
+            return _routes->user_log(crow::json::load(req.body));
+        });
 }

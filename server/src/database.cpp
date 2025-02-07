@@ -1,11 +1,17 @@
 #include "database.hpp"
+#include "crow/http_response.h"
 #include "crow/json.h"
+#include "crow/returnable.h"
+#include "crypto.hpp"
+#include "database_pool.hpp"
 #include "structs.hpp"
 #include <cassert>
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <exception>
 #include <fstream>
+#include <openssl/evp.h>
 #include <optional>
 #include <pqxx/internal/statement_parameters.hxx>
 #include <pqxx/zview.hxx>
@@ -99,6 +105,118 @@ auto database::sql_bool_array(
     sql_req += "}";
 
     return sql_req;
+}
+
+auto database::user_reg_exec(const std::string &email,
+                             const std::string &pass) -> crow::response {
+
+    try {
+
+        auto connection = pool->acquire();
+
+        pqxx::work tx{*connection};
+
+        std::string salt = crypto::hash_to_hex(*crypto::rand_bytes(8));
+
+        std::string p_h = crypto::pepper +
+                          crypto::hash_to_hex(crypto::sha256(pass + salt));
+
+        pqxx::params params{email, p_h, salt};
+
+        tx.exec(
+            "INSERT INTO person(email, hash_pass, salt) VALUES($1,$2,$3::text)",
+            params);
+
+        tx.commit();
+
+        return crow::response(200);
+
+    } catch (const std::exception &exc) {
+
+        std::cout << "The connection to the databse failed" << exc.what()
+                  << std::endl;
+
+        return crow::response(400, "The connection to the databse failed: ");
+    }
+}
+
+auto database::user_log_exec(const std::string &email, const std::string &pass)
+    -> std::optional<crow::response> {
+
+    try {
+
+        crow::response r;
+
+        auto connection = pool->acquire();
+
+        pqxx::work tx{*connection};
+
+        pqxx::params p1 = {email};
+
+        pqxx::result res = tx.exec(
+            "SELECT salt, hash_pass FROM person WHERE email = $1", p1);
+
+        tx.commit();
+
+        if (res.empty()) return std::nullopt;
+
+        const pqxx::row data = res.back();
+
+        std::string salt = *data["salt"].get<std::string>();
+        std::string db_p_h = *data["hash_pass"].get<std::string>();
+
+        std::string p_h = crypto::pepper +
+                          crypto::hash_to_hex(crypto::sha256(pass + salt));
+
+        if (db_p_h == p_h) {
+
+            auto token = crypto::hash_to_hex(*crypto::rand_bytes(16));
+
+            pqxx::params p2{email};
+
+            pqxx::result r2 = tx.exec(
+                "SELECT id FROM person WHERE email = $1::text", p2);
+
+            tx.commit();
+
+            auto id = r2.back()["id"].get<int>();
+
+            const auto t1 =
+                std::chrono::duration_cast<std::chrono::seconds>(
+                    std::chrono::system_clock::now().time_since_epoch())
+                    .count();
+
+            const auto t2 =
+                std::chrono::duration_cast<std::chrono::seconds>(
+                    (std::chrono::system_clock::now() + std::chrono::hours(1))
+                        .time_since_epoch())
+                    .count();
+
+            pqxx::params p3{id, token, t1, t2};
+
+            tx.exec("INSERT INTO session VALUES($1::integer,$2::text, $3, $4)",
+                    p3);
+
+            tx.commit();
+
+            r.set_header("Set-Cookie",
+                         "session_token=" + token +
+                             ";HttpOnly; Secure; SameSite=Strict; Path=/; "
+                             "Max-Age=3600");
+            r.code = 200;
+
+            return r;
+        }
+
+        return std::nullopt;
+
+    } catch (const std::exception &exc) {
+
+        std::cout << "The connection to the databse failed: " << exc.what()
+                  << std::endl;
+
+        return std::nullopt;
+    }
 }
 
 auto database::hotels_exec(const request_params_t &params)

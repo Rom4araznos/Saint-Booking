@@ -1,6 +1,7 @@
 #pragma once
 
 #include "crow/http_response.h"
+#include "crow/json.h"
 #include "crow/query_string.h"
 #include "structs.hpp"
 #include <cstddef>
@@ -50,6 +51,10 @@ class server_routes {
 
         auto particular_info_places(const crow::query_string &params)
             -> crow::response;
+
+        auto user_reg(const crow::json::rvalue &data) -> crow::response;
+
+        auto user_log(const crow::json::rvalue &data) -> crow::response;
 
     private:
         std::shared_ptr<database> _database;
