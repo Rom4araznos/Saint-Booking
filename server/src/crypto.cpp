@@ -3,9 +3,11 @@
 #include <cstdint>
 #include <cstdlib>
 #include <iomanip>
+#include <openssl/crypto.h>
 #include <openssl/err.h>
 #include <openssl/evp.h>
 #include <openssl/rand.h>
+#include <openssl/sha.h>
 #include <optional>
 #include <sstream>
 #include <string>
@@ -24,26 +26,44 @@ auto crypto::rand_bytes(std::uint32_t size) -> std::optional<std::string> {
     return buf;
 }
 
-auto crypto::create_hash_evp(const EVP_MD *mod, const std::string &data)
-    -> std::optional<std::string> {
+auto crypto::sha1(std::string_view pass) -> std::string {
 
-    std::string hash_bin_pass;
+    std::string buf;
+    buf.resize(20);
 
-    EVP_MD_CTX *cont = EVP_MD_CTX_new();
+    auto bytes = reinterpret_cast<const unsigned char *>(pass.data());
+    auto out = reinterpret_cast<unsigned char *>(buf.data());
 
-    if (!cont) return std::nullopt;
-    if (!EVP_DigestInit_ex(cont, mod, NULL)) return std::nullopt;
-    if (!EVP_DigestUpdate(cont, data.data(), data.size())) return std::nullopt;
+    SHA1(bytes, pass.size(), out);
 
-    unsigned char hash[EVP_MAX_MD_SIZE];
-    unsigned int h_length = 0;
+    return buf;
+}
 
-    if (!EVP_DigestFinal(cont, hash, &h_length)) return std::nullopt;
+auto crypto::sha256(std::string_view pass) -> std::string {
 
-    hash_bin_pass.assign(hash, hash + h_length);
+    std::string buf;
+    buf.resize(32);
 
-    return hash_bin_pass;
-};
+    auto bytes = reinterpret_cast<const unsigned char *>(pass.data());
+    auto out = reinterpret_cast<unsigned char *>(buf.data());
+
+    SHA256(bytes, pass.size(), out);
+
+    return buf;
+}
+
+auto crypto::sha512(std::string_view pass) -> std::string {
+
+    std::string buf;
+    buf.resize(64);
+
+    auto bytes = reinterpret_cast<const unsigned char *>(pass.data());
+    auto out = reinterpret_cast<unsigned char *>(buf.data());
+
+    SHA512(bytes, pass.size(), out);
+
+    return buf;
+}
 
 auto crypto::hash_to_hex(const std::string &data) -> std::string {
 
