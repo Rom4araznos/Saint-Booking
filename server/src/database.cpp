@@ -119,9 +119,7 @@ auto database::user_reg_exec(const std::string &email,
         std::string salt = crypto::hash_to_hex(*crypto::rand_bytes(8));
 
         std::string p_h = crypto::pepper +
-                          crypto::hash_to_hex(*crypto::create_hash_evp(
-                              EVP_sha256(), std::string(pass + salt)));
-
+                          crypto::hash_to_hex(crypto::sha256(pass + salt));
 
         pqxx::params params{email, p_h, salt};
 
@@ -168,8 +166,7 @@ auto database::user_log_exec(const std::string &email, const std::string &pass)
         std::string db_p_h = *data["hash_pass"].get<std::string>();
 
         std::string p_h = crypto::pepper +
-                          crypto::hash_to_hex(*crypto::create_hash_evp(
-                              EVP_sha256(), pass + salt));
+                          crypto::hash_to_hex(crypto::sha256(pass + salt));
 
         if (db_p_h == p_h) {
 
