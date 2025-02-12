@@ -1,14 +1,30 @@
 #include "core.hpp"
+#include <asio/detail/throw_exception.hpp>
+#include <cstdlib>
+#include <stdexcept>
+#include <string>
 
 booking::booking() {
 
+    char* h = std::getenv("DB_HOST");
+    char* n = std::getenv("DB_NAME");
+    char* un = std::getenv("DB_USERNAME");
+    char* pass = std::getenv("DB_PASSWORD");
+    char* port = std::getenv("DB_PORT");
+
+
+    if (h == nullptr || n == nullptr || un == nullptr || pass == nullptr ||
+        port == nullptr)
+        throw std::logic_error("Error: Invalid connection data");
+
+
     psql_config_t config{
 
-        .host = "localhost",
-        .db_name = "postgres",
-        .username = "postgres",
-        .password = "rOMAN2015!",
-        .port = 5432
+        .host = h,
+        .db_name = n,
+        .username = un,
+        .password = pass,
+        .port = std::stoi(port)
 
     };
 
