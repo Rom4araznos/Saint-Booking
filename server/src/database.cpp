@@ -16,6 +16,9 @@
 #include <optional>
 #include <pqxx/internal/statement_parameters.hxx>
 #include <pqxx/zview.hxx>
+#include <sstream>
+#include <stdexcept>
+#include <streambuf>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -52,37 +55,17 @@ database::database(std::shared_ptr<connection_pool> &con_pool,
     tx.commit();
 };
 
-auto database::get_sql_from_file(std::string_view path_to)
+auto database::get_sql_from_file(const std::string &path_to)
     -> std::optional<std::string> {
 
-    try {
+    std::ifstream file(path_to);
 
-        constexpr auto buff_size = std::size_t(4096);
+    if (!file) throw std::logic_error("Error: Something with sql file");
 
-        auto stream = std::ifstream(path_to.data());
+    std::stringstream buf;
+    buf << file.rdbuf();
 
-        if (!stream)
-            std::cout << "File does not exist: " << path_to << std::endl;
-
-        auto out_str = std::string();
-        auto buffer = std::string(buff_size, '\0');
-
-        while (stream.read(&buffer[0], buff_size)) {
-
-            out_str.append(buffer, 0, stream.gcount());
-        }
-
-        out_str.append(buffer, 0, stream.gcount());
-
-        return out_str;
-
-    } catch (const std::ios_base::failure &exc) {
-
-        std::cout << "Error: Something with sql file" << exc.what()
-                  << std::endl;
-
-        return std::nullopt;
-    }
+    return buf.str();
 }
 
 auto database::sql_bool_array(

@@ -18,7 +18,7 @@ class database {
         database(std::shared_ptr<connection_pool> &con_pool,
                  std::unordered_map<order_type, std::string> &u_map);
 
-        auto get_sql_from_file(std::string_view path_to)
+        auto get_sql_from_file(const std::string &path_to)
             -> std::optional<std::string>;
         auto sql_bool_array(const std::vector<std::optional<std::uint16_t>>
                                 &opt_vec) -> std::string;
