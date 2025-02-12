@@ -10,6 +10,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <exception>
+#include <format>
 #include <fstream>
 #include <openssl/evp.h>
 #include <optional>
@@ -116,10 +117,10 @@ auto database::user_reg_exec(const std::string &email,
 
         pqxx::work tx{*connection};
 
-        std::string salt = crypto::hash_to_hex(*crypto::rand_bytes(8));
+        std::string salt = crypto::hex(*crypto::rand_bytes(8));
 
         std::string p_h = crypto::pepper +
-                          crypto::hash_to_hex(crypto::sha256(pass + salt));
+                          crypto::hex(crypto::sha256(pass + salt));
 
         pqxx::params params{email, p_h, salt};
 
@@ -166,11 +167,11 @@ auto database::user_log_exec(const std::string &email, const std::string &pass)
         std::string db_p_h = *data["hash_pass"].get<std::string>();
 
         std::string p_h = crypto::pepper +
-                          crypto::hash_to_hex(crypto::sha256(pass + salt));
+                          crypto::hex(crypto::sha256(pass + salt));
 
         if (db_p_h == p_h) {
 
-            auto token = crypto::hash_to_hex(*crypto::rand_bytes(16));
+            auto token = crypto::hex(*crypto::rand_bytes(16));
 
             pqxx::params p2{email};
 
@@ -200,9 +201,11 @@ auto database::user_log_exec(const std::string &email, const std::string &pass)
             tx.commit();
 
             r.set_header("Set-Cookie",
-                         "session_token=" + token +
-                             ";HttpOnly; Secure; SameSite=Strict; Path=/; "
-                             "Max-Age=3600");
+                         std::format("session_token={};HttpOnly; Secure; "
+                                     "SameSite=Strict; Path=/; "
+                                     "Max-Age=3600",
+                                     token));
+
             r.code = 200;
 
             return r;
