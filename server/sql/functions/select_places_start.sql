@@ -3,7 +3,9 @@ CREATE OR REPLACE FUNCTION select_places_start(
 	_limit int,
     _offset int,
 	_sort_cond text,
-	_sort_type text
+	_sort_type text,
+    _country text,
+    _city text
         ) 
         RETURNS TABLE(name character varying(60), country character varying(30), city character varying(30), photos_path text) AS $$
     BEGIN
@@ -12,7 +14,9 @@ CREATE OR REPLACE FUNCTION select_places_start(
 		FROM places
 		JOIN places_photos ON places_photos.fk_place_id = places.id
 		WHERE (_num_for_sort IS NULL OR _sort_cond >= _num_for_sort)
-        GROUP BY  places.name,places.country, places.city, places_photos.p_photos_path, places.price, places.user_rating
+        AND(_country IS NULL OR places.country = _country)
+        AND(_city IS NULL OR places.city = _city)
+        GROUP BY places.name,places.country, places.city, places_photos.p_photos_path, places.price, places.user_rating
 		ORDER BY
     CASE 
         WHEN _sort_type = 'DESC' THEN
