@@ -1,6 +1,6 @@
 add_definitions(-DCROW_ENABLE_SSL)
 
-add_executable(server_bk src/httpserver.cpp src/routes.cpp src/database.cpp src/database_pool.cpp src/core.cpp src/crypto.cpp src/main.cpp)
+add_executable(server_bk src/httpserver.cpp src/routes.cpp src/database.cpp src/database_pool.cpp src/core.cpp src/crypto.cpp src/main.cpp src/envloader.cpp src/utils.cpp)
 
 target_compile_definitions(server_bk PRIVATE CROW_ENABLE_SSL)
 
