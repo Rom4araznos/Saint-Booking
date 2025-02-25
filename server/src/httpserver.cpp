@@ -91,11 +91,16 @@ auto httpserver::routes() -> void {
 
     CROW_ROUTE(_app, "/api/join")
         .methods(crow::HTTPMethod::POST)([this](const crow::request &req) {
-            return _routes->user_reg(crow::json::load(req.body));
+            return _routes->user_reg(req);
         });
 
     CROW_ROUTE(_app, "/api/login")
         .methods(crow::HTTPMethod::POST)([this](const crow::request &req) {
-            return _routes->user_log(crow::json::load(req.body));
+            return _routes->user_log(req);
+        });
+
+    CROW_ROUTE(_app, "/api/order/reserve")
+        .methods(crow::HTTPMethod::POST)([this](const crow::request &req) {
+            return _routes->apartment_res(req);
         });
 }
