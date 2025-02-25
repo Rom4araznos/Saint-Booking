@@ -53,5 +53,5 @@ struct psql_config_t {
         std::string db_name;
         std::string username;
         std::string password;
-        std::uint16_t port;
+        std::int32_t port;
 };

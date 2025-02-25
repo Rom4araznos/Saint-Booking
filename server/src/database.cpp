@@ -10,11 +10,15 @@
 #include <cstddef>
 #include <cstdint>
 #include <exception>
+#include <format>
 #include <fstream>
 #include <openssl/evp.h>
 #include <optional>
 #include <pqxx/internal/statement_parameters.hxx>
 #include <pqxx/zview.hxx>
+#include <sstream>
+#include <stdexcept>
+#include <streambuf>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -31,7 +35,8 @@ database::database(std::shared_ptr<connection_pool> &con_pool,
         "bin_sql/functions/select_places_start.sql",
         "bin_sql/functions/select_places_search.sql",
         "bin_sql/functions/select_hotel.sql",
-        "bin_sql/functions/select_place.sql"};
+        "bin_sql/functions/select_place.sql",
+        "bin_sql/functions/check_session_token.sql"};
 
     auto conn = pool->acquire();
 
@@ -41,47 +46,26 @@ database::database(std::shared_ptr<connection_pool> &con_pool,
 
         auto sql_func = get_sql_from_file(path_to);
 
-        if (!sql_func)
+        if (sql_func.empty())
             std::cout << "Error: " << "Something with sql function's file"
                       << std::endl;
 
-        tx.exec(*sql_func);
+        tx.exec(sql_func);
     }
 
     tx.commit();
 };
 
-auto database::get_sql_from_file(std::string_view path_to)
-    -> std::optional<std::string> {
+auto database::get_sql_from_file(const std::string &path_to) -> std::string {
 
-    try {
+    std::ifstream file(path_to);
 
-        constexpr auto buff_size = std::size_t(4096);
+    if (!file) throw std::logic_error("Error: Something with sql file");
 
-        auto stream = std::ifstream(path_to.data());
+    std::stringstream buf;
+    buf << file.rdbuf();
 
-        if (!stream)
-            std::cout << "File does not exist: " << path_to << std::endl;
-
-        auto out_str = std::string();
-        auto buffer = std::string(buff_size, '\0');
-
-        while (stream.read(&buffer[0], buff_size)) {
-
-            out_str.append(buffer, 0, stream.gcount());
-        }
-
-        out_str.append(buffer, 0, stream.gcount());
-
-        return out_str;
-
-    } catch (const std::ios_base::failure &exc) {
-
-        std::cout << "Error: Something with sql file" << exc.what()
-                  << std::endl;
-
-        return std::nullopt;
-    }
+    return buf.str();
 }
 
 auto database::sql_bool_array(
@@ -93,11 +77,10 @@ auto database::sql_bool_array(
 
         if (i != 0) sql_req += ',';
 
-        if (opt_vec[i].has_value() && opt_vec[i].value() == 1)
-            sql_req += "true";
+        if (opt_vec[i].has_value() && opt_vec[i].value() == 1) sql_req += "t";
 
         else if (opt_vec[i].has_value() && opt_vec[i].value() == 0)
-            sql_req += "false";
+            sql_req += "f";
 
         else sql_req += "NULL";
     }
@@ -105,6 +88,258 @@ auto database::sql_bool_array(
     sql_req += "}";
 
     return sql_req;
+}
+
+auto database::get_id_by_token(const std::string &token)
+    -> std::optional<std::string> {
+
+    try {
+
+        auto connection = pool->acquire();
+
+        pqxx::work tx{*connection};
+
+        pqxx::params params{token};
+
+        pqxx::result res = tx.exec(
+            "SELECT fk_person_id FROM session WHERE token = $1", params);
+
+        tx.commit();
+
+        auto id_token = res.back()["fk_person_id"].get<std::string>();
+
+        if (!id_token.has_value()) return std::nullopt;
+
+        return id_token;
+
+    } catch (const std::exception &exc) {
+
+        std::cout << "The connection to the databse failed: " << exc.what()
+                  << std::endl;
+
+        return std::nullopt;
+    }
+}
+
+auto database::check_expiration(const std::string &token) -> bool {
+
+    try {
+
+        auto connection = pool->acquire();
+
+        pqxx::work tx{*connection};
+
+        auto t_now = std::chrono::duration_cast<std::chrono::seconds>(
+                         (std::chrono::system_clock::now()).time_since_epoch())
+                         .count();
+
+        bool res = tx.query_value<bool>(std::format(
+            "SELECT * FROM check_token_expiration('{}',{})", token, t_now));
+
+        tx.commit();
+
+        if (!res) return false;
+
+        return true;
+
+    } catch (const std::exception &exc) {
+
+        std::cout << "The connection to the databse failed: " << exc.what()
+                  << std::endl;
+
+        return false;
+    }
+}
+
+auto database::pers_id_with_full_data(const std::string &token)
+    -> std::optional<std::string> {
+
+    auto connection = pool->acquire();
+
+    pqxx::work tx(*connection);
+
+    pqxx::params p1{token};
+
+    auto res = tx.exec(
+        "SELECT id, f_name, l_name, phone, citizenship FROM person WHERE id = "
+        "(SELECT fk_person_id FROM session WHERE token = $1)",
+        p1);
+
+    tx.commit();
+
+    auto fn = res.back()["f_name"].get<std::string>();
+    auto ln = res.back()["l_name"].get<std::string>();
+    auto p = res.back()["phone"].get<std::string>();
+    auto c = res.back()["citizenship"].get<std::string>();
+
+    if (fn == std::nullopt || ln == std::nullopt || p == std::nullopt ||
+        c == std::nullopt)
+
+        return std::nullopt;
+
+    return res.back()["id"].get<std::string>();
+};
+
+auto database::res_exec(const std::string &p_id,
+                        const crow::json::rvalue &json) -> crow::response {
+
+    try {
+
+        std::string h_id = json["hotel_id"].s();
+        std::string r_id = json["room_id"].s();
+
+        std::string check_in = json["check_in"].s();
+        std::string check_out = json["check_in"].s();
+
+
+        if (h_id.empty() || r_id.empty() || check_in.empty() ||
+            check_out.empty())
+            return crow::response(400, "Incorrect data of the order");
+
+        auto connection = pool->acquire();
+
+        pqxx::work tx{*connection};
+
+        pqxx::params params{p_id,     h_id,      r_id,
+                            check_in, check_out, "inprogress"};
+
+        tx.exec("INSERT INTO orders(fk_person_id, fk_hotel_id, "
+                "fk_room_id, check_in, check_out, status) VALUES($1, $2, $3, "
+                "$4, $5, $6)",
+                params)
+            .no_rows();
+
+        tx.commit();
+
+        return crow::response(200);
+
+    } catch (const std::exception &exc) {
+
+        if (std::string(exc.what()) == "cannot find key") {
+
+            std::cout << "Invalid data in the json: " << exc.what()
+                      << std::endl;
+
+            return crow::response(400, "Invalid data in the json");
+        }
+
+        std::cout << "The connection to the databse failed: " << exc.what()
+                  << std::endl;
+
+        return crow::response(400, "The connection to the databse failed");
+    }
+}
+
+auto database::res_log_exec(const std::string &id_pers,
+                            const crow::json::rvalue &json) -> crow::response {
+    try {
+
+        std::string f_name = json["f_name"].s();
+        std::string l_name = json["l_name"].s();
+        std::string citizenship = json["citizenship"].s();
+        std::string phone = json["phone"].s();
+        std::string h_id = json["hotel_id"].s();
+        std::string r_id = json["room_id"].s();
+
+        std::string check_in = json["check_in"].s();
+        std::string check_out = json["check_in"].s();
+
+        if (f_name.empty() || l_name.empty() || citizenship.empty() ||
+            phone.empty() || h_id.empty() || r_id.empty() || check_in.empty() ||
+            check_out.empty())
+            return crow::response(400, "Incorrect data of the order");
+
+        auto connection = pool->acquire();
+
+        pqxx::work tx{*connection};
+
+        pqxx::params params{id_pers,   f_name,      l_name, citizenship,
+                            phone,     h_id,        r_id,   check_in,
+                            check_out, "inprogress"};
+
+        tx.exec("INSERT INTO orders(fk_person_id,f_name, l_name, citizenship, "
+                "phone,fk_hotel_id, fk_room_id, check_in, check_out, status) "
+                "VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)",
+                params);
+
+        tx.commit();
+
+        return crow::response(200);
+
+    } catch (const std::exception &exc) {
+
+        if (std::string(exc.what()) == "cannot find key") {
+
+            std::cout << "Invalid data in the json: " << exc.what()
+                      << std::endl;
+
+            return crow::response(400, "Invalid data in the json");
+        }
+
+        std::cout << "The connection to the databse failed: " << exc.what()
+                  << std::endl;
+
+        return crow::response(400, "The connection to the databse failed");
+    }
+}
+
+auto database::full_res_exec(const crow::json::rvalue &json)
+    -> std::optional<crow::response> {
+
+    try {
+
+        std::string f_name = json["f_name"].s();
+        std::string l_name = json["l_name"].s();
+        std::string citizenship = json["citizenship"].s();
+        std::string phone = json["phone"].s();
+        std::string email = json["email"].s();
+        std::string h_id = json["hotel_id"].s();
+        std::string r_id = json["room_id"].s();
+
+        std::string check_in = json["check_in"].s();
+        std::string check_out = json["check_in"].s();
+
+
+        if (f_name.empty() || l_name.empty() || citizenship.empty() ||
+            phone.empty() || email.empty() || h_id.empty() || r_id.empty() ||
+            check_in.empty() || check_out.empty())
+            return crow::response(400, "Incorrect data of the order");
+
+        std::stol(check_in);
+        std::stol(check_out);
+
+        auto connection = pool->acquire();
+
+        pqxx::work tx(*connection);
+
+        pqxx::params params{f_name,    l_name,      citizenship, phone,
+                            email,     h_id,        r_id,        check_in,
+                            check_out, "inprogress"};
+
+        tx.exec("INSERT INTO orders(f_name, l_name, citizenship, phone, "
+                "email, fk_hotel_id, fk_room_id, check_in, check_out, status) "
+                "VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)",
+                params);
+
+        tx.commit();
+
+        return crow::response(200);
+
+    } catch (const std::exception &exc) {
+
+        if (std::string(exc.what()) == "cannot find key") {
+
+            std::cout << "Invalid data in the json: " << exc.what()
+                      << std::endl;
+
+            return crow::response(400, "Invalid data in the json");
+        }
+
+        std::cout << "The connection to the databse failed: " << exc.what()
+                  << std::endl;
+
+        return crow::response(400, "The connection to the databse failed");
+    }
 }
 
 auto database::user_reg_exec(const std::string &email,
@@ -116,16 +351,16 @@ auto database::user_reg_exec(const std::string &email,
 
         pqxx::work tx{*connection};
 
-        std::string salt = crypto::hash_to_hex(*crypto::rand_bytes(8));
+        std::string salt = crypto::hex(*crypto::rand_bytes(8));
 
         std::string p_h = crypto::pepper +
-                          crypto::hash_to_hex(crypto::sha256(pass + salt));
+                          crypto::hex(crypto::sha256(pass + salt));
 
         pqxx::params params{email, p_h, salt};
 
-        tx.exec(
-            "INSERT INTO person(email, hash_pass, salt) VALUES($1,$2,$3::text)",
-            params);
+        tx.exec("INSERT INTO person(email, hash_pass, salt) "
+                "VALUES($1,$2,$3::text)",
+                params);
 
         tx.commit();
 
@@ -133,10 +368,10 @@ auto database::user_reg_exec(const std::string &email,
 
     } catch (const std::exception &exc) {
 
-        std::cout << "The connection to the databse failed" << exc.what()
+        std::cout << "The connection to the databse failed: " << exc.what()
                   << std::endl;
 
-        return crow::response(400, "The connection to the databse failed: ");
+        return crow::response(400, "The connection to the databse failed");
     }
 }
 
@@ -151,7 +386,7 @@ auto database::user_log_exec(const std::string &email, const std::string &pass)
 
         pqxx::work tx{*connection};
 
-        pqxx::params p1 = {email};
+        pqxx::params p1{email};
 
         pqxx::result res = tx.exec(
             "SELECT salt, hash_pass FROM person WHERE email = $1", p1);
@@ -166,11 +401,11 @@ auto database::user_log_exec(const std::string &email, const std::string &pass)
         std::string db_p_h = *data["hash_pass"].get<std::string>();
 
         std::string p_h = crypto::pepper +
-                          crypto::hash_to_hex(crypto::sha256(pass + salt));
+                          crypto::hex(crypto::sha256(pass + salt));
 
         if (db_p_h == p_h) {
 
-            auto token = crypto::hash_to_hex(*crypto::rand_bytes(16));
+            auto token = crypto::hex(*crypto::rand_bytes(16));
 
             pqxx::params p2{email};
 
@@ -200,9 +435,11 @@ auto database::user_log_exec(const std::string &email, const std::string &pass)
             tx.commit();
 
             r.set_header("Set-Cookie",
-                         "session_token=" + token +
-                             ";HttpOnly; Secure; SameSite=Strict; Path=/; "
-                             "Max-Age=3600");
+                         std::format("sessionid={};HttpOnly; Secure; "
+                                     "SameSite=Strict; Path=/; "
+                                     "Max-Age=3600",
+                                     token));
+
             r.code = 200;
 
             return r;
@@ -239,7 +476,8 @@ auto database::hotels_exec(const request_params_t &params)
             params.order, params.country,      params.city};
 
         pqxx::result res = tx.exec(
-            "SELECT * FROM select_hotels_start($1::boolean[] ,$2, $3, $4, $5, "
+            "SELECT * FROM select_hotels_start($1::boolean[] ,$2, $3, $4, "
+            "$5, "
             "$6, "
             "$7,$8,$9)",
             pq_params);
@@ -311,7 +549,8 @@ auto database::hotels_search_exec(const request_params_t &params)
             params.order, params.country,      params.city};
 
         pqxx::result res = tx.exec(
-            "SELECT * FROM select_hotels_search($1::boolean[], $2, $3, $4, $5, "
+            "SELECT * FROM select_hotels_search($1::boolean[], $2, $3, $4, "
+            "$5, "
             "$6, $7, "
             "$8, $9)",
             pq_params);
@@ -542,11 +781,15 @@ auto database::places_exec(const request_params_t &params)
 
         pqxx::work tx{*conn};
 
-        pqxx::params pq_params{params.num_for_sort, params.limit, params.offset,
-                               types_of_orders[params.order_by], params.order};
+        pqxx::params pq_params{
+            params.num_for_sort, params.limit,
+            params.offset,       types_of_orders[params.order_by],
+            params.order,        params.country,
+            params.city};
 
         pqxx::result res = tx.exec(
-            "SELECT * FROM select_places_start($1, $2, $3, $4, $5)", pq_params);
+            "SELECT * FROM select_places_start($1, $2, $3, $4, $5, $6, $7)",
+            pq_params);
 
         tx.commit();
 
@@ -689,7 +932,6 @@ auto database::particular_hotel_exec(const request_params_t &params)
         for (size_t i = 0; i < row_num; i++) {
             const pqxx::row row = res[i];
 
-            json["type_room_amount"] = nullptr;
             json["name"] = nullptr;
             json["price"] = nullptr;
             json["country"] = nullptr;
@@ -728,9 +970,6 @@ auto database::particular_hotel_exec(const request_params_t &params)
             json["group_of"] = nullptr;
             json["description_of_type"] = nullptr;
             json["photo_path"] = nullptr;
-
-            if (auto type_r = row["type_room_amount"].get<int>())
-                json["type_room_amount"] = *type_r;
 
             if (auto name = row["name"].get<std::string>())
                 json["name"] = *name;

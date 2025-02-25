@@ -9,6 +9,8 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <unordered_map>
+#include <utility>
 #include <variant>
 #include "database.hpp"
 
@@ -52,10 +54,16 @@ class server_routes {
         auto particular_info_places(const crow::query_string &params)
             -> crow::response;
 
-        auto user_reg(const crow::json::rvalue &data) -> crow::response;
+        auto user_reg(const crow::request &req) -> crow::response;
 
-        auto user_log(const crow::json::rvalue &data) -> crow::response;
+        auto user_log(const crow::request &req) -> crow::response;
+
+        auto apertment_res_full(const crow::json::rvalue &data)
+            -> crow::response;
+
+        auto apartment_res(const crow::request &req) -> crow::response;
 
     private:
         std::shared_ptr<database> _database;
+        static std::unordered_multimap<std::string, std::string> headers;
 };

@@ -65,7 +65,7 @@ auto crypto::sha512(std::string_view pass) -> std::string {
     return buf;
 }
 
-auto crypto::hash_to_hex(const std::string &data) -> std::string {
+auto crypto::hex(const std::string &data) -> std::string {
 
     std::stringstream ss;
 

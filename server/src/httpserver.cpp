@@ -24,11 +24,8 @@ auto httpserver::set_up_config() -> void {
             asio::ssl::context::no_tlsv1 | asio::ssl::context::no_tlsv1_1 |
             asio::ssl::context::no_tlsv1_2);
 
-        ctx.use_certificate_chain_file(
-            "/home/rom4araznos/Documents/proga/ssl_booking/server.pem");
-        ctx.use_private_key_file(
-            "/home/rom4araznos/Documents/proga/ssl_booking/server.key",
-            asio::ssl::context::pem);
+        ctx.use_certificate_chain_file("server.pem");
+        ctx.use_private_key_file("server.key", asio::ssl::context::pem);
 
         ctx.set_verify_mode(asio::ssl::verify_none);
 
@@ -92,13 +89,18 @@ auto httpserver::routes() -> void {
         return _routes->particular_info_places(req.url_params);
     });
 
-    CROW_ROUTE(_app, "api/join")
+    CROW_ROUTE(_app, "/api/join")
         .methods(crow::HTTPMethod::POST)([this](const crow::request &req) {
-            return _routes->user_reg(crow::json::load(req.body));
+            return _routes->user_reg(req);
         });
 
-    CROW_ROUTE(_app, "api/login")
+    CROW_ROUTE(_app, "/api/login")
         .methods(crow::HTTPMethod::POST)([this](const crow::request &req) {
-            return _routes->user_log(crow::json::load(req.body));
+            return _routes->user_log(req);
+        });
+
+    CROW_ROUTE(_app, "/api/order/reserve")
+        .methods(crow::HTTPMethod::POST)([this](const crow::request &req) {
+            return _routes->apartment_res(req);
         });
 }
