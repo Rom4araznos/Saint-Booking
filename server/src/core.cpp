@@ -3,20 +3,21 @@
 #include <cstdlib>
 #include <stdexcept>
 #include <string>
+#include "envloader.hpp"
 
 booking::booking() {
 
-    char* h = std::getenv("DB_HOST");
-    char* n = std::getenv("DB_NAME");
-    char* un = std::getenv("DB_USERNAME");
-    char* pass = std::getenv("DB_PASSWORD");
-    char* port = std::getenv("DB_PORT");
+    env_loader env_file(".env");
+    auto val = env_file.get_v();
 
+    std::string h = val["DB_HOST"];
+    std::string n = val["DB_NAME"];
+    std::string un = val["DB_USERNAME"];
+    std::string pass = val["DB_PASSWORD"];
+    std::string port = val["DB_PORT"];
 
-    if (h == nullptr || n == nullptr || un == nullptr || pass == nullptr ||
-        port == nullptr)
-        throw std::logic_error("Error: Invalid connection data");
-
+    if (h.empty() || n.empty() || un.empty() || pass.empty() || port.empty())
+        throw std::runtime_error("Error: Invalid connection data");
 
     psql_config_t config{
 
