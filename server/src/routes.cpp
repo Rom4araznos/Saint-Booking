@@ -1,3 +1,5 @@
+#include "crow/ci_map.h"
+#include "crow/http_request.h"
 #include "crow/http_response.h"
 #include "crow/json.h"
 #include "crow/query_string.h"
@@ -8,12 +10,14 @@
 #include <optional>
 #include <pqxx/pqxx>
 #include <string>
+#include <unordered_map>
 #include <utility>
 #include <variant>
 #include "database.hpp"
 #include "structs.hpp"
 #include "routes.hpp"
 #include "openssl/sha.h"
+#include "utils.hpp"
 
 auto server_routes::opt_int_queries(const char *param)
     -> std::optional<std::uint16_t> {
@@ -340,24 +344,34 @@ auto server_routes::particular_info_places(const crow::query_string &params)
     return *json;
 }
 
-auto server_routes::user_reg(const crow::json::rvalue &data) -> crow::response {
+auto server_routes::user_reg(const crow::request &req) -> crow::response {
 
-    if (!data) return crow::response(400, "The client has not sent the data");
+    auto json = crow::json::load(req.body);
 
-    std::string e = data["email"].s();
-    std::string p = data["password"].s();
+    if (!json) return crow::response(400, "The client has not sent the data");
+
+    std::string e = json["email"].s();
+    std::string p = json["password"].s();
+
+    if (e.empty() || p.empty())
+        return crow::response(400, "The client has sent incorrect data");
 
     auto resp = _database->user_reg_exec(e, p);
 
     return resp;
 }
 
-auto server_routes::user_log(const crow::json::rvalue &data) -> crow::response {
+auto server_routes::user_log(const crow::request &req) -> crow::response {
 
-    if (!data) return crow::response(400, "The client has not sent the data");
+    auto json = crow::json::load(req.body);
 
-    std::string e = data["email"].s();
-    std::string p = data["password"].s();
+    if (!json) return crow::response(400, "The client has not sent the data");
+
+    std::string e = json["email"].s();
+    std::string p = json["password"].s();
+
+    if (e.empty() || p.empty())
+        return crow::response(400, "The client has sent incorrect data");
 
     auto resp = _database->user_log_exec(e, p);
 
@@ -365,4 +379,43 @@ auto server_routes::user_log(const crow::json::rvalue &data) -> crow::response {
         return crow::response(400, "Incorrect authorization data");
 
     return std::move(*resp);
+}
+
+auto server_routes::apartment_res(const crow::request &req) -> crow::response {
+
+    std::string header = req.get_header_value("Cookie");
+
+    auto json = crow::json::load(req.body);
+
+    if (auto p = cookie::pars_header(header)) {
+
+        auto sessionid = p->get_idsession();
+
+        if ((sessionid.has_value())) {
+
+            if (!_database->check_expiration(*sessionid))
+                return crow::response(403, "The session time has expired");
+
+            if (!json)
+                return crow::response(
+                    403, "The client is registered and logged in, "
+                         "however have not provided full information");
+
+            auto id_pers_full_data = _database->pers_id_with_full_data(
+                *sessionid);
+
+            if (!id_pers_full_data.has_value()) {
+
+                auto id_pers = _database->get_id_by_token(*sessionid);
+
+                return _database->res_log_exec(*id_pers, json);
+            };
+
+            return _database->res_exec(*id_pers_full_data, json);
+        }
+    }
+
+    if (json) { return *_database->full_res_exec(json); }
+
+    return crow::response(403, "The client has not sent any data");
 }
