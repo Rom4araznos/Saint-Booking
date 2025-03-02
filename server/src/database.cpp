@@ -24,8 +24,8 @@
 #include <vector>
 
 database::database(std::shared_ptr<connection_pool> &con_pool,
-                   std::unordered_map<order_type, std::string> &u_map)
-    : pool(con_pool), types_of_orders(u_map) {
+                   std::unordered_map<order_type, std::string> &ord_filters)
+    : pool(con_pool), types_of_orders(ord_filters) {
 
     std::vector<std::string> paths_to = {
         "bin_sql/functions/select_hotels_start.sql",
@@ -56,7 +56,8 @@ database::database(std::shared_ptr<connection_pool> &con_pool,
     tx.commit();
 };
 
-auto database::get_sql_from_file(const std::string &path_to) -> std::string {
+auto database::get_sql_from_file(const std::string &path_to) const
+    -> std::string {
 
     std::ifstream file(path_to);
 
@@ -68,8 +69,8 @@ auto database::get_sql_from_file(const std::string &path_to) -> std::string {
     return buf.str();
 }
 
-auto database::sql_bool_array(
-    const std::vector<std::optional<std::uint16_t>> &opt_vec) -> std::string {
+auto database::sql_bool_array(const std::vector<std::optional<std::uint16_t>>
+                                  &opt_vec) const -> std::string {
 
     std::string sql_req = "{";
 
@@ -90,7 +91,7 @@ auto database::sql_bool_array(
     return sql_req;
 }
 
-auto database::get_id_by_token(const std::string &token)
+auto database::get_id_by_token(const std::string &token) const
     -> std::optional<std::string> {
 
     try {
@@ -121,7 +122,7 @@ auto database::get_id_by_token(const std::string &token)
     }
 }
 
-auto database::check_expiration(const std::string &token) -> bool {
+auto database::check_expiration(const std::string &token) const -> bool {
 
     try {
 
@@ -151,7 +152,7 @@ auto database::check_expiration(const std::string &token) -> bool {
     }
 }
 
-auto database::pers_id_with_full_data(const std::string &token)
+auto database::pers_id_with_full_data(const std::string &token) const
     -> std::optional<std::string> {
 
     auto connection = pool->acquire();
@@ -180,8 +181,8 @@ auto database::pers_id_with_full_data(const std::string &token)
     return res.back()["id"].get<std::string>();
 };
 
-auto database::res_exec(const std::string &p_id,
-                        const crow::json::rvalue &json) -> crow::response {
+auto database::res_exec(const std::string &p_id, const crow::json::rvalue &json)
+    const -> crow::response {
 
     try {
 
@@ -231,7 +232,8 @@ auto database::res_exec(const std::string &p_id,
 }
 
 auto database::res_log_exec(const std::string &id_pers,
-                            const crow::json::rvalue &json) -> crow::response {
+                            const crow::json::rvalue &json) const
+    -> crow::response {
     try {
 
         std::string f_name = json["f_name"].s();
@@ -283,7 +285,7 @@ auto database::res_log_exec(const std::string &id_pers,
     }
 }
 
-auto database::full_res_exec(const crow::json::rvalue &json)
+auto database::full_res_exec(const crow::json::rvalue &json) const
     -> std::optional<crow::response> {
 
     try {
@@ -343,7 +345,7 @@ auto database::full_res_exec(const crow::json::rvalue &json)
 }
 
 auto database::user_reg_exec(const std::string &email,
-                             const std::string &pass) -> crow::response {
+                             const std::string &pass) const -> crow::response {
 
     try {
 
@@ -376,7 +378,7 @@ auto database::user_reg_exec(const std::string &email,
 }
 
 auto database::user_log_exec(const std::string &email, const std::string &pass)
-    -> std::optional<crow::response> {
+    const -> std::optional<crow::response> {
 
     try {
 
@@ -456,7 +458,7 @@ auto database::user_log_exec(const std::string &email, const std::string &pass)
     }
 }
 
-auto database::hotels_exec(const request_params_t &params)
+auto database::hotels_exec(const request_params_t &params) const
     -> std::optional<crow::json::wvalue> {
 
     try {
@@ -471,9 +473,11 @@ auto database::hotels_exec(const request_params_t &params)
         std::string array = sql_bool_array(params.room_params);
 
         pqxx::params pq_params{
-            array,        params.num_for_sort, params.person,
-            params.limit, params.offset,       types_of_orders[params.order_by],
-            params.order, params.country,      params.city};
+            array,         params.num_for_sort,
+            params.person, params.limit,
+            params.offset, types_of_orders.find(params.order_by)->second,
+            params.order,  params.country,
+            params.city};
 
         pqxx::result res = tx.exec(
             "SELECT * FROM select_hotels_start($1::boolean[] ,$2, $3, $4, "
@@ -529,7 +533,7 @@ auto database::hotels_exec(const request_params_t &params)
     };
 }
 
-auto database::hotels_search_exec(const request_params_t &params)
+auto database::hotels_search_exec(const request_params_t &params) const
     -> std::optional<crow::json::wvalue> {
 
     try {
@@ -544,9 +548,11 @@ auto database::hotels_search_exec(const request_params_t &params)
         std::string array = sql_bool_array(params.room_params);
 
         pqxx::params pq_params{
-            array,        params.num_for_sort, params.person,
-            params.limit, params.offset,       types_of_orders[params.order_by],
-            params.order, params.country,      params.city};
+            array,         params.num_for_sort,
+            params.person, params.limit,
+            params.offset, types_of_orders.find(params.order_by)->second,
+            params.order,  params.country,
+            params.city};
 
         pqxx::result res = tx.exec(
             "SELECT * FROM select_hotels_search($1::boolean[], $2, $3, $4, "
@@ -621,7 +627,7 @@ auto database::hotels_search_exec(const request_params_t &params)
     };
 }
 
-auto database::discounted_hotels_exec(const request_params_t &params)
+auto database::discounted_hotels_exec(const request_params_t &params) const
     -> std::optional<crow::json::wvalue> {
 
     try {
@@ -636,9 +642,11 @@ auto database::discounted_hotels_exec(const request_params_t &params)
         std::string array = sql_bool_array(params.room_params);
 
         pqxx::params pq_params{
-            array,        params.num_for_sort, params.person,
-            params.limit, params.offset,       types_of_orders[params.order_by],
-            params.order, params.country,      params.city};
+            array,         params.num_for_sort,
+            params.person, params.limit,
+            params.offset, types_of_orders.find(params.order_by)->second,
+            params.order,  params.country,
+            params.city};
 
         pqxx::result res = tx.exec(
             "SELECT * FROM select_discounted_hotels_start($1, $2, $3, $4, "
@@ -691,8 +699,8 @@ auto database::discounted_hotels_exec(const request_params_t &params)
     }
 }
 
-auto database::discounted_hotels_search_exec(const request_params_t &params)
-    -> std::optional<crow::json::wvalue> {
+auto database::discounted_hotels_search_exec(
+    const request_params_t &params) const -> std::optional<crow::json::wvalue> {
     try {
         crow::json::wvalue json;
         crow::json::wvalue::list list;
@@ -704,9 +712,11 @@ auto database::discounted_hotels_search_exec(const request_params_t &params)
         std::string array = sql_bool_array(params.room_params);
 
         pqxx::params pq_params{
-            array,        params.num_for_sort, params.person,
-            params.limit, params.offset,       types_of_orders[params.order_by],
-            params.order, params.country,      params.city};
+            array,         params.num_for_sort,
+            params.person, params.limit,
+            params.offset, types_of_orders.find(params.order_by)->second,
+            params.order,  params.country,
+            params.city};
 
         pqxx::result res = tx.exec(
             "SELECT * FROM select_discounted_hotels_search($1, $2, $3, $4, "
@@ -769,7 +779,7 @@ auto database::discounted_hotels_search_exec(const request_params_t &params)
 }
 
 
-auto database::places_exec(const request_params_t &params)
+auto database::places_exec(const request_params_t &params) const
     -> std::optional<crow::json::wvalue> {
 
     try {
@@ -783,7 +793,7 @@ auto database::places_exec(const request_params_t &params)
 
         pqxx::params pq_params{
             params.num_for_sort, params.limit,
-            params.offset,       types_of_orders[params.order_by],
+            params.offset,       types_of_orders.find(params.order_by)->second,
             params.order,        params.country,
             params.city};
 
@@ -831,7 +841,7 @@ auto database::places_exec(const request_params_t &params)
     }
 }
 
-auto database::places_search_exec(const request_params_t &params)
+auto database::places_search_exec(const request_params_t &params) const
     -> std::optional<crow::json::wvalue> {
 
     try {
@@ -847,7 +857,7 @@ auto database::places_search_exec(const request_params_t &params)
 
         pqxx::params pq_params{
             params.num_for_sort, params.limit,
-            params.offset,       types_of_orders[params.order_by],
+            params.offset,       types_of_orders.find(params.order_by)->second,
             params.order,        params.country,
             params.city};
 
@@ -913,7 +923,7 @@ auto database::places_search_exec(const request_params_t &params)
     }
 }
 
-auto database::particular_hotel_exec(const request_params_t &params)
+auto database::particular_hotel_exec(const request_params_t &params) const
     -> std::optional<crow::json::wvalue> {
 
     try {
@@ -1100,7 +1110,7 @@ auto database::particular_hotel_exec(const request_params_t &params)
     }
 }
 
-auto database::particular_place_exec(const request_params_t &params)
+auto database::particular_place_exec(const request_params_t &params) const
     -> std::optional<crow::json::wvalue> {
 
     try {

@@ -19,7 +19,7 @@
 #include "openssl/sha.h"
 #include "utils.hpp"
 
-auto server_routes::opt_int_queries(const char *param)
+auto server_routes::opt_int_queries(const char *param) const
     -> std::optional<std::uint16_t> {
 
     if (param) return std::uint16_t(std::stoi(param));
@@ -27,7 +27,7 @@ auto server_routes::opt_int_queries(const char *param)
     return std::nullopt;
 }
 
-auto server_routes::opt_str_queries(const char *param)
+auto server_routes::opt_str_queries(const char *param) const
     -> std::optional<std::string> {
 
     if (param) return std::string(param);
@@ -35,7 +35,7 @@ auto server_routes::opt_str_queries(const char *param)
     return std::nullopt;
 }
 
-auto server_routes::opt_ll_queries(const char *param)
+auto server_routes::opt_ll_queries(const char *param) const
     -> std::optional<std::uint64_t> {
 
     if (param) return std::uint64_t(std::stoll(param));
@@ -43,7 +43,7 @@ auto server_routes::opt_ll_queries(const char *param)
     return std::nullopt;
 }
 
-auto server_routes::query_params_hotels(const crow::query_string &params)
+auto server_routes::query_params_hotels(const crow::query_string &params) const
     -> std::variant<request_params_t, crow::response> {
 
     request_params_t req_params;
@@ -142,7 +142,7 @@ auto server_routes::query_params_hotels(const crow::query_string &params)
     return req_params;
 }
 
-auto server_routes::query_params_places(const crow::query_string &params)
+auto server_routes::query_params_places(const crow::query_string &params) const
     -> std::variant<request_params_t, crow::response> {
 
     request_params_t req_params;
@@ -182,7 +182,7 @@ auto server_routes::query_params_places(const crow::query_string &params)
     return req_params;
 }
 
-auto server_routes::query_particular_obj(const crow::query_string &params)
+auto server_routes::query_particular_obj(const crow::query_string &params) const
     -> std::variant<request_params_t, crow::response> {
 
     request_params_t req_params;
@@ -205,7 +205,8 @@ auto server_routes::query_particular_obj(const crow::query_string &params)
     }
 }
 
-auto server_routes::hotels(const crow::query_string &params) -> crow::response {
+auto server_routes::hotels(const crow::query_string &params) const
+    -> crow::response {
 
     auto r_hotels = query_params_hotels(params);
 
@@ -221,7 +222,7 @@ auto server_routes::hotels(const crow::query_string &params) -> crow::response {
     return *json;
 }
 
-auto server_routes::hotels_search(const crow::query_string &params)
+auto server_routes::hotels_search(const crow::query_string &params) const
     -> crow::response {
 
     auto r_hotels = query_params_hotels(params);
@@ -239,7 +240,7 @@ auto server_routes::hotels_search(const crow::query_string &params)
     return *json;
 }
 
-auto server_routes::discounted_hotels(const crow::query_string &params)
+auto server_routes::discounted_hotels(const crow::query_string &params) const
     -> crow::response {
 
     auto r_discounted_hotel = query_params_hotels(params);
@@ -257,8 +258,8 @@ auto server_routes::discounted_hotels(const crow::query_string &params)
     return *json;
 }
 
-auto server_routes::discounted_hotels_search(const crow::query_string &params)
-    -> crow::response {
+auto server_routes::discounted_hotels_search(
+    const crow::query_string &params) const -> crow::response {
 
     auto r_discounted_hotel = query_params_hotels(params);
 
@@ -275,7 +276,8 @@ auto server_routes::discounted_hotels_search(const crow::query_string &params)
     return *json;
 };
 
-auto server_routes::places(const crow::query_string &params) -> crow::response {
+auto server_routes::places(const crow::query_string &params) const
+    -> crow::response {
 
     auto r_places = query_params_places(params);
 
@@ -291,7 +293,7 @@ auto server_routes::places(const crow::query_string &params) -> crow::response {
     return *json;
 }
 
-auto server_routes::places_search(const crow::query_string &params)
+auto server_routes::places_search(const crow::query_string &params) const
     -> crow::response {
 
     auto r_places = query_params_places(params);
@@ -310,8 +312,8 @@ auto server_routes::places_search(const crow::query_string &params)
 }
 
 
-auto server_routes::particular_info_hotels(const crow::query_string &params)
-    -> crow::response {
+auto server_routes::particular_info_hotels(
+    const crow::query_string &params) const -> crow::response {
 
     auto r_particular_hotel = query_particular_obj(params);
 
@@ -327,8 +329,8 @@ auto server_routes::particular_info_hotels(const crow::query_string &params)
     return *json;
 }
 
-auto server_routes::particular_info_places(const crow::query_string &params)
-    -> crow::response {
+auto server_routes::particular_info_places(
+    const crow::query_string &params) const -> crow::response {
 
     auto r_particular_hotel = query_particular_obj(params);
 
@@ -344,7 +346,7 @@ auto server_routes::particular_info_places(const crow::query_string &params)
     return *json;
 }
 
-auto server_routes::user_reg(const crow::request &req) -> crow::response {
+auto server_routes::user_reg(const crow::request &req) const -> crow::response {
 
     auto json = crow::json::load(req.body);
 
@@ -361,7 +363,7 @@ auto server_routes::user_reg(const crow::request &req) -> crow::response {
     return resp;
 }
 
-auto server_routes::user_log(const crow::request &req) -> crow::response {
+auto server_routes::user_log(const crow::request &req) const -> crow::response {
 
     auto json = crow::json::load(req.body);
 
@@ -381,7 +383,8 @@ auto server_routes::user_log(const crow::request &req) -> crow::response {
     return std::move(*resp);
 }
 
-auto server_routes::apartment_res(const crow::request &req) -> crow::response {
+auto server_routes::apartment_res(const crow::request &req) const
+    -> crow::response {
 
     std::string header = req.get_header_value("Cookie");
 
